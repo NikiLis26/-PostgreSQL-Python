@@ -6,94 +6,78 @@
 # телефон.
 
 
+
+
 import sqlite3
 
 
 def create_db_structure():
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS clients (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            first_name TEXT,
-            last_name TEXT,
-            email TEXT,
-            additional_info TEXT
-        )
-    ''')
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('client_management.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS clients (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                first_name TEXT,
+                last_name TEXT,
+                email TEXT,
+                additional_info TEXT
+            )
+        ''')
 
 
 def add_new_client(first_name, last_name, email, additional_info=None):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO clients (first_name, last_name, email, additional_info)
-        VALUES (?, ?, ?, ?)
-    ''', (first_name, last_name, email, additional_info))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect('client_management.db') as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO clients (first_name, last_name, email, additional_info)
+            VALUES (?, ?, ?, ?)
+        ''', (first_name, last_name, email, additional_info))
 
 
-def add_phone_for_client(client_id, phone_number):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE clients
-        SET additional_info = COALESCE(additional_info || ', ' || ?, ?)
-        WHERE id = ?
-    ''', (phone_number, phone_number, client_id))
-    conn.commit()
-    conn.close()
+def update_client_info(client_id, first_name=None, last_name=None, email=None, additional_info=None):
+    with sqlite3.connect('client_management.db') as conn:
+        cursor = conn.cursor()
+        fields = []
+        params = []
+
+        if first_name is not None:
+            fields.append("first_name = ?")
+            params.append(first_name)
+        if last_name is not None:
+            fields.append("last_name = ?")
+            params.append(last_name)
+        if email is not None:
+            fields.append("email = ?")
+            params.append(email)
+        if additional_info is not None:
+            fields.append("additional_info = ?")
+            params.append(additional_info)
+
+        params.append(client_id)
+        sql = f"UPDATE clients SET {', '.join(fields)} WHERE id = ?"
+        cursor.execute(sql, params)
 
 
-def update_client_info(client_id, new_email):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE clients
-        SET email = ?
-        WHERE id = ?
-    ''', (new_email, client_id))
-    conn.commit()
-    conn.close()
+def find_client(first_name=None, last_name=None, email=None, additional_info=None):
+    with sqlite3.connect('client_management.db') as conn:
+        cursor = conn.cursor()
+        fields = []
+        params = []
+        
+        for field, value in zip(['first_name', 'last_name', 'email', '%additional_info%'], [first_name, last_name, email, additional_info]):
+            if value is not None:
+                fields.append(f"{field} = ?")
+                params.append(value)
 
-def delete_phone_for_client(client_id, phone_number):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        UPDATE clients
-        SET additional_info = REPLACE(additional_info, ?, '')
-        WHERE id = ?
-    ''', (phone_number, client_id))
-    conn.commit()
-    conn.close()
-
-def delete_client(client_id):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        DELETE FROM clients
-        WHERE id = ?
-    ''', (client_id,))
-    conn.commit()
-    conn.close()
+        sql = f"SELECT * FROM clients WHERE {' AND '.join(fields)}"
+        cursor.execute(sql, params)
+        return cursor.fetchall()
 
 
-def find_client(search_term):
-    conn = sqlite3.connect('client_management.db')
-    cursor = conn.cursor()
-    cursor.execute('SELECT * FROM clients WHERE first_name = ? OR last_name = ? OR email = ? OR additional_info LIKE ?', (search_term, search_term, search_term, f'%{search_term}%'))
-    result = cursor.fetchall()
-    conn.close()
-    return result
+if __name__ == "__main__":
+    create_db_structure()
+    add_new_client('Иван', 'Иванов', 'ivan@example.com')
+    update_client_info(client_id=1, email='ivan_updated@example.com', additional_info='New info')
+    found_clients = find_client(first_name='Иван')
+    print(found_clients)
 
-# Тест
-create_db_structure()
-add_new_client('Иван', 'Иванов', 'ivan@example.com')
-add_phone_for_client(1, '123-456-7890')
-update_client_info(1, 'ivan_updated@example.com')
-find_client('Иван')
-delete_phone_for_client(1, '123-456-7890')
-delete_client(1)
